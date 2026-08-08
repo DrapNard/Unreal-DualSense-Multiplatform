@@ -80,6 +80,14 @@ namespace GamepadCore
 
 			for (auto Context : DetectedDevices)
 			{
+				// A known path already owns a live platform handle. Opening it again on
+				// every detection pass leaks the newly created handle because CreateLibrary
+				// intentionally ignores duplicate engine device IDs.
+				if (KnownDevicePaths.contains(Context.Path))
+				{
+					continue;
+				}
+
 				Context.Output = FOutputContext();
 				if (bool IsCreateHandle = IPlatformHardware::Get().CreateHandle(&Context))
 				{

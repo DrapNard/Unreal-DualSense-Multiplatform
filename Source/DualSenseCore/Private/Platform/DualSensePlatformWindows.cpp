@@ -39,7 +39,8 @@ namespace
         OVERLAPPED ReadOverlapped{};
         bool ReadPending = false;
         USHORT InputLength = 78;
-        std::array<unsigned char, 78> ReadBuffer{};
+        USHORT OutputLength = 78;
+        std::vector<unsigned char> ReadBuffer;
     };
 
     EDSDeviceType DeviceTypeFromProduct(USHORT Product)
@@ -139,7 +140,7 @@ namespace
             std::memset(&State->ReadOverlapped, 0, sizeof(State->ReadOverlapped));
             State->ReadOverlapped.hEvent = State->ReadEvent;
             DWORD BytesRead = 0;
-            const DWORD ReadLength = std::min<DWORD>(State->InputLength, static_cast<DWORD>(State->ReadBuffer.size()));
+            const DWORD ReadLength = static_cast<DWORD>(State->ReadBuffer.size());
             if (ReadFile(State->ReadHandle, State->ReadBuffer.data(), ReadLength, &BytesRead, &State->ReadOverlapped))
             {
                 CopyReadBuffer(Context, State->ReadBuffer.data(), BytesRead);
@@ -164,7 +165,8 @@ namespace
             WindowsHandle* State = GetHandle(Context);
             if (!State || State->WriteHandle == INVALID_HANDLE_VALUE) return;
             DWORD Written = 0;
-            const DWORD Length = static_cast<DWORD>(OutputSize(*Context));
+            const DWORD ProtocolLength = static_cast<DWORD>(OutputSize(*Context));
+            const DWORD Length = std::min<DWORD>(ProtocolLength, State->OutputLength);
             if (!WriteFile(State->WriteHandle, Context->GetRawOutputBuffer(), Length, &Written, nullptr))
             {
                 const DWORD Error = GetLastError();
@@ -236,6 +238,12 @@ namespace
             State->ReadHandle = ReadHandle;
             State->WriteHandle = WriteHandle;
             State->InputLength = Caps.InputReportByteLength;
+            State->OutputLength = Caps.OutputReportByteLength;
+            // Windows can expose a 547-byte Bluetooth DS4 input report. ReadFile
+            // requires a buffer large enough for the HID collection's declared
+            // report length, even though the protocol parser only consumes the
+            // leading controller payload.
+            State->ReadBuffer.resize(std::max<std::size_t>(State->InputLength, 78u));
             State->ReadEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
             if (!State->ReadEvent)
             {

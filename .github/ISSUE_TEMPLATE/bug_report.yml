@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a reproducible problem with the plugin
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting a bug. Please include enough detail to reproduce it.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: "1.0.0 or commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: ue
+    attributes:
+      label: Unreal Engine version
+      options: ["5.0", "5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8", "Source/custom"]
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: ["Windows", "Linux", "macOS"]
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: OS version / Linux distribution
+      placeholder: "Windows 11 24H2, Arch Linux, Ubuntu 26.04, macOS 26..."
+  - type: dropdown
+    id: controller
+    attributes:
+      label: Controller
+      options: ["DualSense", "DualSense Edge", "DualShock 4 v1", "DualShock 4 v2"]
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Connection
+      options: ["USB", "Bluetooth"]
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: "1. Connect...\n2. Call...\n3. Observe..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I tested with the latest plugin revision or stable release when possible.
+          required: true

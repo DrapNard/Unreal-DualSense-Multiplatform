@@ -1,0 +1,77 @@
+name: Unreal Matrix
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Source/**"
+      - "Config/**"
+      - "DualSenseMultiplatform.uplugin"
+      - ".github/workflows/unreal-matrix.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-plugin:
+    # Public repositories normally do not have redistributable Unreal Engine binaries.
+    # Set repository variable ENABLE_UNREAL_MATRIX=true after registering the documented
+    # self-hosted runners. Manual dispatch always runs the matrix.
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_UNREAL_MATRIX == 'true'
+    name: UE ${{ matrix.ue }} / ${{ matrix.os }}
+    runs-on: [self-hosted, "${{ matrix.os }}", "ue-${{ matrix.ue }}"]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        ue: ["5.0", "5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8"]
+        os: [linux, windows, macOS]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate repository
+        run: python Scripts/validate_repo.py
+
+      - name: Build plugin (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          if (-not $env:UE_ROOT) { throw "UE_ROOT must point at this runner's Unreal Engine installation." }
+          $uat = Join-Path $env:UE_ROOT "Engine/Build/BatchFiles/RunUAT.bat"
+          & $uat BuildPlugin `
+            -Plugin="$PWD/DualSenseMultiplatform.uplugin" `
+            -Package="$PWD/dist/UE-${{ matrix.ue }}-${{ matrix.os }}" `
+            -TargetPlatforms=Win64 `
+            -Rocket
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build plugin (Linux)
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          : "${UE_ROOT:?UE_ROOT must point at this runner's Unreal Engine installation}"
+          "$UE_ROOT/Engine/Build/BatchFiles/RunUAT.sh" BuildPlugin \
+            -Plugin="$PWD/DualSenseMultiplatform.uplugin" \
+            -Package="$PWD/dist/UE-${{ matrix.ue }}-${{ matrix.os }}" \
+            -TargetPlatforms=Linux \
+            -Rocket
+
+      - name: Build plugin (macOS)
+        if: matrix.os == 'macOS'
+        shell: bash
+        run: |
+          : "${UE_ROOT:?UE_ROOT must point at this runner's Unreal Engine installation}"
+          "$UE_ROOT/Engine/Build/BatchFiles/RunUAT.sh" BuildPlugin \
+            -Plugin="$PWD/DualSenseMultiplatform.uplugin" \
+            -Package="$PWD/dist/UE-${{ matrix.ue }}-${{ matrix.os }}" \
+            -TargetPlatforms=Mac \
+            -Rocket
+
+      - name: Upload packaged plugin
+        uses: actions/upload-artifact@v7
+        with:
+          name: DualSenseMultiplatform-UE${{ matrix.ue }}-${{ matrix.os }}
+          path: dist/UE-${{ matrix.ue }}-${{ matrix.os }}
+          if-no-files-found: error

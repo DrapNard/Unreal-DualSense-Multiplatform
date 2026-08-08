@@ -40,3 +40,6 @@ elseif(APPLE)
     find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
     target_link_libraries(dualsense_native_tests PRIVATE ${IOKIT_FRAMEWORK} ${COREFOUNDATION_FRAMEWORK})
 endif()
+
+enable_testing()
+add_test(NAME dualsense_native_smoke COMMAND dualsense_native_tests)

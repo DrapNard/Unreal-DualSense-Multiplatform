@@ -114,6 +114,16 @@ namespace
         Set(Button::FnRight, Input.bFn2);
         Set(Button::PaddleLeft, Input.bPaddleLeft);
         Set(Button::PaddleRight, Input.bPaddleRight);
+        Set(Button::LeftTriggerThreshold, Input.bLeftTriggerThreshold);
+        Set(Button::RightTriggerThreshold, Input.bRightTriggerThreshold);
+        Set(Button::LeftStickRight, Input.bLeftAnalogRight);
+        Set(Button::LeftStickUp, Input.bLeftAnalogUp);
+        Set(Button::LeftStickDown, Input.bLeftAnalogDown);
+        Set(Button::LeftStickLeft, Input.bLeftAnalogLeft);
+        Set(Button::RightStickLeft, Input.bRightAnalogLeft);
+        Set(Button::RightStickDown, Input.bRightAnalogDown);
+        Set(Button::RightStickUp, Input.bRightAnalogUp);
+        Set(Button::RightStickRight, Input.bRightAnalogRight);
         return Out;
     }
 }

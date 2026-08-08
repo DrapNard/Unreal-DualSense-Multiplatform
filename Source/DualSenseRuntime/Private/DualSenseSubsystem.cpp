@@ -191,7 +191,7 @@ void UDualSenseSubsystem::PollEvents()
             const FDualSenseState* Previous = PreviousStates.Find(Id);
             if (Previous)
             {
-                for (uint8 RawButton = 0; RawButton <= static_cast<uint8>(EDualSenseButton::PaddleRight); ++RawButton)
+                for (uint8 RawButton = 0; RawButton < static_cast<uint8>(EDualSenseButton::Count); ++RawButton)
                 {
                     const EDualSenseButton Button = static_cast<EDualSenseButton>(RawButton);
                     const bool WasDown = Previous->PressedButtons.Contains(Button);
