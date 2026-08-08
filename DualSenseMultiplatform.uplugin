@@ -1,0 +1,28 @@
+{
+  "FileVersion": 3,
+  "Version": 10000,
+  "VersionName": "1.0.0",
+  "FriendlyName": "DualSense Multiplatform",
+  "Description": "Cross-platform DualSense and DualShock 4 advanced controller support for Unreal Engine, with Blueprint and C++ APIs.",
+  "Category": "Input Devices",
+  "CreatedBy": "DrapNard and contributors",
+  "CreatedByURL": "https://github.com/DrapNard",
+  "DocsURL": "https://github.com/DrapNard/Unreal-DualSense-Multiplatform/wiki",
+  "SupportURL": "https://github.com/DrapNard/Unreal-DualSense-Multiplatform/issues",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "SupportedTargetPlatforms": ["Win64", "Linux", "Mac"],
+  "Modules": [
+    {
+      "Name": "DualSenseCore",
+      "Type": "Runtime",
+      "LoadingPhase": "PreDefault"
+    },
+    {
+      "Name": "DualSenseRuntime",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
