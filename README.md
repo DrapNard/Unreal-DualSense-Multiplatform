@@ -33,6 +33,7 @@ It exposes the controller features through a small Unreal-facing API without lea
 | Hot-plug detection | ✅ | ✅ | ✅ |
 | Rumble | ✅ | ✅ | ✅ |
 | RGB lightbar | ✅ | ✅ | ✅ |
+| Smooth light transitions | ✅ | ✅ | ✅ |
 | Player LEDs | ✅ | ✅ | — |
 | Microphone LED | ✅ | ✅ | — |
 | Adaptive triggers | ✅ | ✅ | — |
@@ -41,8 +42,9 @@ It exposes the controller features through a small Unreal-facing API without lea
 | Edge function / paddle buttons | — | ✅ | — |
 | DualSense audio settings | ✅ | ✅ | — |
 | Audio-driven haptics | ✅ | ✅ | — |
+| Accessibility output limits | ✅ | ✅ | ✅* |
 
-The exact feature set also depends on transport and host OS behavior. See [Hardware Support](Wiki/Hardware-Support.md).
+The exact feature set also depends on transport and host OS behavior. Accessibility output limits are implemented by the Unreal layer, so unsupported hardware features are simply ignored by capability-aware gameplay. `*` DualShock 4 receives the applicable light/rumble limits only. See [Hardware Support](Wiki/Hardware-Support.md).
 
 ## Platform support
 
@@ -103,10 +105,12 @@ Typical flow:
 1. Bind `On Device Connected` / `On Device Disconnected`.
 2. Call `Get Connected Device Ids` or use the ID from the connection event.
 3. Poll `Get State` when you need the complete raw controller state.
-4. Use output nodes such as `Set Lightbar`, `Set Vibration`, or the adaptive-trigger nodes.
-5. Keep `Apply Immediately` enabled for simple use, or disable it on several setters and call `Apply Output` once to batch changes.
+4. Use output nodes such as `Set Lightbar`, `Set Vibration`, or `Set Trigger Preset (Simple)`.
+5. Set `Transition Duration` directly on lightbar/player-LED nodes when you want a smooth LED change (`0` remains instant).
+6. Apply an accessibility preset or custom accessibility settings when the player wants reduced flashing, brightness, rumble, trigger force, or audio haptics.
+7. Keep `Apply Immediately` enabled for simple use, or disable it on several non-animated setters and call `Apply Output` once to batch changes.
 
-All advanced upstream trigger modes are exposed, including resistance, GameCube-style, bow, galloping, weapon, machine-gun, machine, and raw 10-byte custom effects.
+The common trigger path is `Set Trigger Preset (Simple)`, with usable defaults and an `Intensity` value from 0 to 1. All advanced upstream trigger modes remain exposed under the advanced trigger category, including resistance, GameCube-style, bow, galloping, weapon, machine-gun, machine, and raw 10-byte custom effects. Every Blueprint node includes an in-editor tooltip.
 
 ## C++ usage
 

@@ -12,6 +12,12 @@ FDualSenseState State;
 if (Subsystem && Subsystem->GetState(DeviceId, State))
 {
     // Use State.LeftStick, State.Gyroscope, State.PressedButtons, ...
+
+    // Smooth light change: the fourth argument is TransitionDuration.
+    Subsystem->SetLightbar(DeviceId, FLinearColor(0.1f, 0.3f, 1.0f), true, 0.25f);
+
+    // Gameplay-friendly adaptive trigger with accessibility-aware intensity.
+    Subsystem->SetTriggerPreset(DeviceId, EDualSenseTriggerPreset::MediumResistance);
 }
 ```
 

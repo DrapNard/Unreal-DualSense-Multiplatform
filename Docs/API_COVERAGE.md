@@ -15,7 +15,7 @@ This file documents how the public GamepadCore controller features are surfaced 
 | Touch / gesture state | `State` + enable calls | `FDualSenseState` + enable nodes |
 | Motion sensor state | `State` + enable/reset calls | `FDualSenseState` + enable/reset nodes |
 | Standard rumble | `SetVibration` | `Set Vibration` |
-| RGB lightbar / flash / reset | lightbar methods | lightbar nodes |
+| RGB lightbar / flash / reset | lightbar methods | lightbar nodes + per-call smooth transition duration |
 | Player LEDs | `SetPlayerLed` | `Set Player Led` |
 | Microphone LED | `SetMicrophoneLed` | `Set Microphone Led` |
 | Adaptive trigger reset | `StopTrigger` | `Stop Trigger` |
@@ -34,3 +34,17 @@ This file documents how the public GamepadCore controller features are surfaced 
 | Batched output flush | `ApplyOutput` | `Apply Output` |
 
 GamepadCore's lifecycle methods (`Initialize`, `ShutdownLibrary`, `UpdateInput`, `UpdateOutput`) remain intentionally internal because the plugin manager owns device lifetime. `UpdateOutput` is represented by `ApplyOutput`; input updates happen from the Unreal subsystem tick.
+
+## Unreal-layer usability and accessibility features
+
+These features intentionally live above GamepadCore because they are engine/user-experience policy rather than controller protocol primitives.
+
+| Unreal-layer feature | Blueprint / C++ API |
+| --- | --- |
+| Smooth RGB transitions | `TransitionDuration` on `SetLightbar`, `SetLightbarFlash`, `SetPlayerLed`, and `ResetLights` |
+| Sensory/accessibility limits | `FDualSenseAccessibilitySettings` |
+| Ready-made accessibility profiles | `ApplyAccessibilityPreset` |
+| Simple trigger presets | `SetTriggerPreset` / `EDualSenseTriggerPreset` |
+| In-editor node documentation | `ToolTip` metadata on every `UFUNCTION` in `UDualSenseSubsystem` |
+
+Accessibility settings are per controller. They can reduce brightness, suppress flashing, enforce smooth light transitions, scale/disable rumble, scale/disable adaptive triggers, and disable audio haptics without changing gameplay Blueprint graphs.

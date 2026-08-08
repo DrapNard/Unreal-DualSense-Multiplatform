@@ -47,6 +47,31 @@ enum class EDualSenseMicrophoneLed : uint8
     Pulse
 };
 
+/** High-level adaptive-trigger effects intended for normal gameplay Blueprints. */
+UENUM(BlueprintType)
+enum class EDualSenseTriggerPreset : uint8
+{
+    Off UMETA(DisplayName="Off", ToolTip="Disable the adaptive-trigger effect."),
+    SoftResistance UMETA(DisplayName="Soft Resistance", ToolTip="Gentle resistance suitable for frequent actions."),
+    MediumResistance UMETA(DisplayName="Medium Resistance", ToolTip="Balanced resistance for general gameplay."),
+    StrongResistance UMETA(DisplayName="Strong Resistance", ToolTip="Firm resistance for deliberate actions."),
+    GameCube UMETA(DisplayName="GameCube Style", ToolTip="GameCube-style trigger stop using the upstream fixed profile."),
+    Bow UMETA(DisplayName="Bow", ToolTip="Bow-string tension and snap-back effect."),
+    Weapon UMETA(DisplayName="Weapon", ToolTip="Short weapon-break effect."),
+    Automatic UMETA(DisplayName="Automatic", ToolTip="Repeating automatic-fire style effect.")
+};
+
+/** Ready-made sensory/accessibility profiles. Custom settings remain available for fine control. */
+UENUM(BlueprintType)
+enum class EDualSenseAccessibilityPreset : uint8
+{
+    Default UMETA(DisplayName="Default", ToolTip="Full controller feedback with no accessibility reductions."),
+    ReducedHaptics UMETA(DisplayName="Reduced Haptics", ToolTip="Lower rumble and adaptive-trigger intensity."),
+    Photosensitive UMETA(DisplayName="Reduced Flashing", ToolTip="Disable flashing, lower LED brightness, and smooth abrupt light changes."),
+    LowSensory UMETA(DisplayName="Low Sensory", ToolTip="Reduce light intensity, flashing, rumble, trigger force, and audio haptics."),
+    NoHaptics UMETA(DisplayName="No Haptics", ToolTip="Disable rumble, adaptive-trigger effects, and audio haptics.")
+};
+
 UENUM(BlueprintType)
 enum class EDualSenseButton : uint8
 {
@@ -82,6 +107,42 @@ enum class EDualSenseButton : uint8
     RightStickUp,
     RightStickRight,
     Count UMETA(Hidden)
+};
+
+/** Per-controller output limits for accessibility and sensory comfort. */
+USTRUCT(BlueprintType)
+struct DUALSENSERUNTIME_API FDualSenseAccessibilitySettings
+{
+    GENERATED_BODY()
+
+    /** Multiplies RGB light intensity. 0 disables the lightbar; 1 keeps requested brightness. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Maximum lightbar intensity multiplier. 0 disables RGB output and 1 keeps the requested brightness."))
+    float LightBrightnessScale = 1.0f;
+
+    /** Flash requests become a static color when enabled. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ToolTip="Replace flashing lightbar effects with a static color."))
+    bool bDisableFlashingLights = false;
+
+    /** Minimum fade duration applied to lightbar changes, even when a node requests an instant transition. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ClampMin="0.0", Units="s", ToolTip="Minimum smooth-transition duration for lightbar changes. 0 allows instant changes."))
+    float MinimumLightTransitionDuration = 0.0f;
+
+    /** Multiplies normal motor vibration intensity. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Rumble intensity multiplier from 0 to 1."))
+    float RumbleIntensityScale = 1.0f;
+
+    /** Multiplies configurable adaptive-trigger force/amplitude values. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Adaptive-trigger intensity multiplier from 0 to 1. Fixed upstream profiles may only be disabled, not rescaled."))
+    float TriggerIntensityScale = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ToolTip="Disable standard motor vibration regardless of gameplay requests."))
+    bool bDisableRumble = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ToolTip="Disable adaptive-trigger effects regardless of gameplay requests."))
+    bool bDisableAdaptiveTriggers = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DualSense|Accessibility", meta=(ToolTip="Reject audio-haptics output while this accessibility profile is active."))
+    bool bDisableAudioHaptics = false;
 };
 
 USTRUCT(BlueprintType)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -78,6 +79,24 @@ if gamepad_private.exists() and bridge_root.exists():
         errors.append(f"Missing GamepadCore compile bridges: {missing_bridges}")
     if stale_bridges:
         errors.append(f"Compile bridges reference missing upstream sources: {stale_bridges}")
+
+
+# Every Blueprint node must explain itself in-editor. Keep this invariant cheap
+# to check without requiring UHT or an Unreal installation.
+runtime_header = ROOT / "Source/DualSenseRuntime/Public/DualSenseSubsystem.h"
+if runtime_header.exists():
+    header_text = runtime_header.read_text(encoding="utf-8")
+    function_macros = re.findall(r"UFUNCTION\((.*?)\)\s*\n", header_text, flags=re.DOTALL)
+    if not function_macros:
+        errors.append("No Blueprint UFUNCTION declarations found in DualSenseSubsystem.h")
+    for index, metadata in enumerate(function_macros, start=1):
+        if "ToolTip=" not in metadata:
+            errors.append(f"Blueprint UFUNCTION #{index} is missing ToolTip metadata")
+
+    for function_name in ("SetLightbar", "SetLightbarFlash", "SetPlayerLed", "ResetLights"):
+        match = re.search(rf"bool\s+{function_name}\((.*?)\);", header_text, flags=re.DOTALL)
+        if not match or "TransitionDuration" not in match.group(1):
+            errors.append(f"{function_name} must expose TransitionDuration directly on the node")
 
 gitmodules_path = ROOT / ".gitmodules"
 if gitmodules_path.exists():

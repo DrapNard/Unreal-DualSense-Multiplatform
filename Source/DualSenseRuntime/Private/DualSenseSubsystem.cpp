@@ -133,6 +133,11 @@ namespace
         const FColor Bytes = Color.GetClamped().ToFColor(false);
         return {Bytes.R, Bytes.G, Bytes.B};
     }
+
+    float ClampedUnit(float Value)
+    {
+        return FMath::Clamp(Value, 0.0f, 1.0f);
+    }
 }
 
 void UDualSenseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -149,6 +154,14 @@ void UDualSenseSubsystem::Deinitialize()
 {
     KnownDeviceIds.Empty();
     PreviousStates.Empty();
+    AccessibilitySettings.Empty();
+    LastRequestedLightbarColors.Empty();
+    LastLightbarColors.Empty();
+    LightbarTransitions.Empty();
+    LastPlayerLedModes.Empty();
+    LastPlayerLedBrightness.Empty();
+    PlayerLedTransitions.Empty();
+    LastMicrophoneLedModes.Empty();
     bInitialized = false;
     Super::Deinitialize();
 }
@@ -157,6 +170,7 @@ void UDualSenseSubsystem::Tick(float DeltaTime)
 {
     if (!bInitialized) return;
     NativeManager().Tick(DeltaTime);
+    UpdateOutputTransitions(DeltaTime);
     PollEvents();
 }
 
@@ -209,10 +223,154 @@ void UDualSenseSubsystem::PollEvents()
         if (!CurrentSet.Contains(OldId))
         {
             PreviousStates.Remove(OldId);
+            AccessibilitySettings.Remove(OldId);
+            LastRequestedLightbarColors.Remove(OldId);
+            LastLightbarColors.Remove(OldId);
+            LightbarTransitions.Remove(OldId);
+            LastPlayerLedModes.Remove(OldId);
+            LastPlayerLedBrightness.Remove(OldId);
+            PlayerLedTransitions.Remove(OldId);
+            LastMicrophoneLedModes.Remove(OldId);
             OnDeviceDisconnected.Broadcast(OldId);
         }
     }
     KnownDeviceIds = MoveTemp(CurrentSet);
+}
+
+void UDualSenseSubsystem::UpdateOutputTransitions(float DeltaTime)
+{
+    TSet<int32> DirtyDevices;
+
+    for (auto It = LightbarTransitions.CreateIterator(); It; ++It)
+    {
+        const int32 DeviceId = It.Key();
+        if (!IsDeviceConnected(DeviceId))
+        {
+            It.RemoveCurrent();
+            continue;
+        }
+
+        FLightbarTransition& Transition = It.Value();
+        Transition.Elapsed += FMath::Max(0.0f, DeltaTime);
+        const float LinearAlpha = Transition.Duration <= KINDA_SMALL_NUMBER
+            ? 1.0f
+            : FMath::Clamp(Transition.Elapsed / Transition.Duration, 0.0f, 1.0f);
+        const float SmoothAlpha = LinearAlpha * LinearAlpha * (3.0f - 2.0f * LinearAlpha);
+        const FLinearColor CurrentColor = FMath::Lerp(Transition.StartColor, Transition.TargetColor, SmoothAlpha);
+
+        NativeManager().SetLightbar(NativeId(DeviceId), NativeColor(CurrentColor), false);
+        LastLightbarColors.Add(DeviceId, CurrentColor);
+        DirtyDevices.Add(DeviceId);
+
+        if (LinearAlpha >= 1.0f)
+        {
+            if (Transition.bStartFlashOnComplete)
+            {
+                NativeManager().SetLightbarFlash(
+                    NativeId(DeviceId),
+                    NativeColor(Transition.TargetColor),
+                    Transition.FlashBrightnessTime,
+                    Transition.FlashToggleTime,
+                    false);
+            }
+            if (Transition.bResetLightsOnComplete)
+            {
+                NativeManager().ResetLights(NativeId(DeviceId), false);
+                LastLightbarColors.Add(DeviceId, FLinearColor::Black);
+                LastPlayerLedModes.Add(DeviceId, EDualSensePlayerLed::Off);
+                LastPlayerLedBrightness.Add(DeviceId, 0);
+                LastMicrophoneLedModes.Add(DeviceId, EDualSenseMicrophoneLed::Off);
+            }
+            It.RemoveCurrent();
+        }
+    }
+
+    for (auto It = PlayerLedTransitions.CreateIterator(); It; ++It)
+    {
+        const int32 DeviceId = It.Key();
+        if (!IsDeviceConnected(DeviceId))
+        {
+            It.RemoveCurrent();
+            continue;
+        }
+
+        FPlayerLedTransition& Transition = It.Value();
+        Transition.Elapsed += FMath::Max(0.0f, DeltaTime);
+        const float LinearAlpha = Transition.Duration <= KINDA_SMALL_NUMBER
+            ? 1.0f
+            : FMath::Clamp(Transition.Elapsed / Transition.Duration, 0.0f, 1.0f);
+        const float SmoothAlpha = LinearAlpha * LinearAlpha * (3.0f - 2.0f * LinearAlpha);
+        const int32 CurrentBrightness = FMath::RoundToInt(FMath::Lerp(
+            static_cast<float>(Transition.StartBrightness),
+            static_cast<float>(Transition.TargetBrightness),
+            SmoothAlpha));
+
+        NativeManager().SetPlayerLed(NativeId(DeviceId), NativePlayerLed(Transition.Led), ByteValue(CurrentBrightness), false);
+        LastPlayerLedModes.Add(DeviceId, Transition.Led);
+        LastPlayerLedBrightness.Add(DeviceId, CurrentBrightness);
+        DirtyDevices.Add(DeviceId);
+
+        if (LinearAlpha >= 1.0f)
+        {
+            It.RemoveCurrent();
+        }
+    }
+
+    for (int32 DeviceId : DirtyDevices)
+    {
+        NativeManager().ApplyOutput(NativeId(DeviceId));
+    }
+}
+
+const FDualSenseAccessibilitySettings& UDualSenseSubsystem::AccessibilityFor(int32 DeviceId) const
+{
+    if (const FDualSenseAccessibilitySettings* Found = AccessibilitySettings.Find(DeviceId))
+    {
+        return *Found;
+    }
+
+    static const FDualSenseAccessibilitySettings Defaults;
+    return Defaults;
+}
+
+FLinearColor UDualSenseSubsystem::ApplyLightAccessibility(int32 DeviceId, const FLinearColor& Color) const
+{
+    const float Scale = ClampedUnit(AccessibilityFor(DeviceId).LightBrightnessScale);
+    FLinearColor Result = Color.GetClamped();
+    Result.R *= Scale;
+    Result.G *= Scale;
+    Result.B *= Scale;
+    return Result;
+}
+
+uint8 UDualSenseSubsystem::ApplyRumbleAccessibility(int32 DeviceId, int32 Value) const
+{
+    const FDualSenseAccessibilitySettings& Settings = AccessibilityFor(DeviceId);
+    if (Settings.bDisableRumble) return 0;
+    return ByteValue(FMath::RoundToInt(static_cast<float>(FMath::Clamp(Value, 0, 255)) * ClampedUnit(Settings.RumbleIntensityScale)));
+}
+
+uint8 UDualSenseSubsystem::ApplyTriggerAccessibility(int32 DeviceId, int32 Value) const
+{
+    const FDualSenseAccessibilitySettings& Settings = AccessibilityFor(DeviceId);
+    if (Settings.bDisableAdaptiveTriggers) return 0;
+    return ByteValue(FMath::RoundToInt(static_cast<float>(FMath::Clamp(Value, 0, 255)) * ClampedUnit(Settings.TriggerIntensityScale)));
+}
+
+float UDualSenseSubsystem::EffectiveLightTransitionDuration(int32 DeviceId, float RequestedDuration) const
+{
+    return FMath::Max(FMath::Max(0.0f, RequestedDuration), FMath::Max(0.0f, AccessibilityFor(DeviceId).MinimumLightTransitionDuration));
+}
+
+bool UDualSenseSubsystem::AdaptiveTriggersAllowed(int32 DeviceId) const
+{
+    const FDualSenseAccessibilitySettings& Settings = AccessibilityFor(DeviceId);
+    return !Settings.bDisableAdaptiveTriggers && ClampedUnit(Settings.TriggerIntensityScale) > KINDA_SMALL_NUMBER;
+}
+
+bool UDualSenseSubsystem::AudioHapticsAllowed(int32 DeviceId) const
+{
+    return !AccessibilityFor(DeviceId).bDisableAudioHaptics;
 }
 
 void UDualSenseSubsystem::RequestImmediateDetection() { NativeManager().RequestImmediateDetection(); }
@@ -264,25 +422,324 @@ bool UDualSenseSubsystem::IsButtonDown(int32 DeviceId, EDualSenseButton Button) 
     return NativeManager().GetState(NativeId(DeviceId), State) && State.Buttons[static_cast<std::size_t>(NativeButton(Button))];
 }
 
-bool UDualSenseSubsystem::ApplyOutput(int32 DeviceId) { return NativeManager().ApplyOutput(NativeId(DeviceId)); }
-bool UDualSenseSubsystem::SetVibration(int32 DeviceId, int32 LeftMotor, int32 RightMotor, bool bApplyImmediately) { return NativeManager().SetVibration(NativeId(DeviceId), ByteValue(LeftMotor), ByteValue(RightMotor), bApplyImmediately); }
-bool UDualSenseSubsystem::SetLightbar(int32 DeviceId, FLinearColor Color, bool bApplyImmediately) { return NativeManager().SetLightbar(NativeId(DeviceId), NativeColor(Color), bApplyImmediately); }
-bool UDualSenseSubsystem::SetLightbarFlash(int32 DeviceId, FLinearColor Color, float BrightnessTime, float ToggleTime, bool bApplyImmediately) { return NativeManager().SetLightbarFlash(NativeId(DeviceId), NativeColor(Color), FMath::Max(0.0f, BrightnessTime), FMath::Max(0.0f, ToggleTime), bApplyImmediately); }
-bool UDualSenseSubsystem::SetPlayerLed(int32 DeviceId, EDualSensePlayerLed Led, int32 Brightness, bool bApplyImmediately) { return NativeManager().SetPlayerLed(NativeId(DeviceId), NativePlayerLed(Led), ByteValue(Brightness), bApplyImmediately); }
-bool UDualSenseSubsystem::SetMicrophoneLed(int32 DeviceId, EDualSenseMicrophoneLed Led, bool bApplyImmediately) { return NativeManager().SetMicrophoneLed(NativeId(DeviceId), NativeMicrophoneLed(Led), bApplyImmediately); }
-bool UDualSenseSubsystem::ResetLights(int32 DeviceId, bool bApplyImmediately) { return NativeManager().ResetLights(NativeId(DeviceId), bApplyImmediately); }
+bool UDualSenseSubsystem::ApplyOutput(int32 DeviceId)
+{
+    return NativeManager().ApplyOutput(NativeId(DeviceId));
+}
 
-bool UDualSenseSubsystem::StopTrigger(int32 DeviceId, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().StopTrigger(NativeId(DeviceId), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetGameCubeTrigger(int32 DeviceId, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetGameCubeTrigger(NativeId(DeviceId), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetResistanceTrigger(int32 DeviceId, int32 StartZone, int32 Strength, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetResistanceTrigger(NativeId(DeviceId), ByteValue(StartZone), ByteValue(Strength), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetBowTrigger(int32 DeviceId, int32 StartZone, int32 SnapBack, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetBowTrigger(NativeId(DeviceId), ByteValue(StartZone), ByteValue(SnapBack), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetGallopingTrigger(int32 DeviceId, int32 StartPosition, int32 EndPosition, int32 FirstFoot, int32 SecondFoot, int32 Frequency, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetGallopingTrigger(NativeId(DeviceId), ByteValue(StartPosition), ByteValue(EndPosition), ByteValue(FirstFoot), ByteValue(SecondFoot), ByteValue(Frequency), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetWeaponTrigger(int32 DeviceId, int32 StartZone, int32 Amplitude, int32 Behavior, int32 Trigger, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetWeaponTrigger(NativeId(DeviceId), ByteValue(StartZone), ByteValue(Amplitude), ByteValue(Behavior), ByteValue(Trigger), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetMachineGunTrigger(int32 DeviceId, int32 StartZone, int32 Behavior, int32 Amplitude, int32 Frequency, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetMachineGunTrigger(NativeId(DeviceId), ByteValue(StartZone), ByteValue(Behavior), ByteValue(Amplitude), ByteValue(Frequency), NativeHand(Hand), bApplyImmediately); }
-bool UDualSenseSubsystem::SetMachineTrigger(int32 DeviceId, int32 StartZone, int32 BehaviorFlag, int32 Force, int32 Amplitude, int32 Period, int32 Frequency, EDualSenseHand Hand, bool bApplyImmediately) { return NativeManager().SetMachineTrigger(NativeId(DeviceId), ByteValue(StartZone), ByteValue(BehaviorFlag), ByteValue(Force), ByteValue(Amplitude), ByteValue(Period), ByteValue(Frequency), NativeHand(Hand), bApplyImmediately); }
+bool UDualSenseSubsystem::SetVibration(int32 DeviceId, int32 LeftMotor, int32 RightMotor, bool bApplyImmediately)
+{
+    return NativeManager().SetVibration(
+        NativeId(DeviceId),
+        ApplyRumbleAccessibility(DeviceId, LeftMotor),
+        ApplyRumbleAccessibility(DeviceId, RightMotor),
+        bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetLightbar(int32 DeviceId, FLinearColor Color, bool bApplyImmediately, float TransitionDuration)
+{
+    if (!IsDeviceConnected(DeviceId)) return false;
+
+    const FLinearColor RequestedColor = Color.GetClamped();
+    LastRequestedLightbarColors.Add(DeviceId, RequestedColor);
+    const FLinearColor TargetColor = ApplyLightAccessibility(DeviceId, RequestedColor);
+    const float Duration = EffectiveLightTransitionDuration(DeviceId, TransitionDuration);
+    LightbarTransitions.Remove(DeviceId);
+
+    if (Duration <= KINDA_SMALL_NUMBER)
+    {
+        LastLightbarColors.Add(DeviceId, TargetColor);
+        return NativeManager().SetLightbar(NativeId(DeviceId), NativeColor(TargetColor), bApplyImmediately);
+    }
+
+    FLightbarTransition Transition;
+    Transition.StartColor = LastLightbarColors.FindRef(DeviceId);
+    Transition.TargetColor = TargetColor;
+    Transition.Duration = Duration;
+    LightbarTransitions.Add(DeviceId, Transition);
+    return true;
+}
+
+bool UDualSenseSubsystem::SetLightbarFlash(int32 DeviceId, FLinearColor Color, float BrightnessTime, float ToggleTime, bool bApplyImmediately, float TransitionDuration)
+{
+    if (!IsDeviceConnected(DeviceId)) return false;
+
+    const FDualSenseAccessibilitySettings& Settings = AccessibilityFor(DeviceId);
+    if (Settings.bDisableFlashingLights)
+    {
+        return SetLightbar(DeviceId, Color, bApplyImmediately, TransitionDuration);
+    }
+
+    const FLinearColor RequestedColor = Color.GetClamped();
+    LastRequestedLightbarColors.Add(DeviceId, RequestedColor);
+    const FLinearColor TargetColor = ApplyLightAccessibility(DeviceId, RequestedColor);
+    const float Duration = EffectiveLightTransitionDuration(DeviceId, TransitionDuration);
+    const float SafeBrightnessTime = FMath::Max(0.0f, BrightnessTime);
+    const float SafeToggleTime = FMath::Max(0.0f, ToggleTime);
+    LightbarTransitions.Remove(DeviceId);
+
+    if (Duration <= KINDA_SMALL_NUMBER)
+    {
+        LastLightbarColors.Add(DeviceId, TargetColor);
+        return NativeManager().SetLightbarFlash(NativeId(DeviceId), NativeColor(TargetColor), SafeBrightnessTime, SafeToggleTime, bApplyImmediately);
+    }
+
+    FLightbarTransition Transition;
+    Transition.StartColor = LastLightbarColors.FindRef(DeviceId);
+    Transition.TargetColor = TargetColor;
+    Transition.Duration = Duration;
+    Transition.bStartFlashOnComplete = true;
+    Transition.FlashBrightnessTime = SafeBrightnessTime;
+    Transition.FlashToggleTime = SafeToggleTime;
+    LightbarTransitions.Add(DeviceId, Transition);
+    return true;
+}
+
+bool UDualSenseSubsystem::SetPlayerLed(int32 DeviceId, EDualSensePlayerLed Led, int32 Brightness, bool bApplyImmediately, float TransitionDuration)
+{
+    if (!IsDeviceConnected(DeviceId)) return false;
+
+    const float Scale = ClampedUnit(AccessibilityFor(DeviceId).LightBrightnessScale);
+    const int32 ScaledBrightness = FMath::RoundToInt(static_cast<float>(FMath::Clamp(Brightness, 0, 255)) * Scale);
+    const float Duration = EffectiveLightTransitionDuration(DeviceId, TransitionDuration);
+    PlayerLedTransitions.Remove(DeviceId);
+
+    if (Duration <= KINDA_SMALL_NUMBER)
+    {
+        LastPlayerLedModes.Add(DeviceId, Led);
+        LastPlayerLedBrightness.Add(DeviceId, ScaledBrightness);
+        return NativeManager().SetPlayerLed(NativeId(DeviceId), NativePlayerLed(Led), ByteValue(ScaledBrightness), bApplyImmediately);
+    }
+
+    FPlayerLedTransition Transition;
+    Transition.Led = Led;
+    Transition.StartBrightness = LastPlayerLedBrightness.FindRef(DeviceId);
+    Transition.TargetBrightness = ScaledBrightness;
+    Transition.Duration = Duration;
+    PlayerLedTransitions.Add(DeviceId, Transition);
+    return true;
+}
+
+bool UDualSenseSubsystem::SetMicrophoneLed(int32 DeviceId, EDualSenseMicrophoneLed Led, bool bApplyImmediately)
+{
+    if (AccessibilityFor(DeviceId).bDisableFlashingLights && Led == EDualSenseMicrophoneLed::Pulse)
+    {
+        Led = EDualSenseMicrophoneLed::On;
+    }
+    LastMicrophoneLedModes.Add(DeviceId, Led);
+    return NativeManager().SetMicrophoneLed(NativeId(DeviceId), NativeMicrophoneLed(Led), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::ResetLights(int32 DeviceId, bool bApplyImmediately, float TransitionDuration)
+{
+    if (!IsDeviceConnected(DeviceId)) return false;
+
+    LastRequestedLightbarColors.Add(DeviceId, FLinearColor::Black);
+    const float Duration = EffectiveLightTransitionDuration(DeviceId, TransitionDuration);
+    LightbarTransitions.Remove(DeviceId);
+
+    if (Duration <= KINDA_SMALL_NUMBER)
+    {
+        LastLightbarColors.Add(DeviceId, FLinearColor::Black);
+        LastPlayerLedModes.Add(DeviceId, EDualSensePlayerLed::Off);
+        LastPlayerLedBrightness.Add(DeviceId, 0);
+        LastMicrophoneLedModes.Add(DeviceId, EDualSenseMicrophoneLed::Off);
+        return NativeManager().ResetLights(NativeId(DeviceId), bApplyImmediately);
+    }
+
+    FLightbarTransition Transition;
+    Transition.StartColor = LastLightbarColors.FindRef(DeviceId);
+    Transition.TargetColor = FLinearColor::Black;
+    Transition.Duration = Duration;
+    Transition.bResetLightsOnComplete = true;
+    LightbarTransitions.Add(DeviceId, Transition);
+
+    if (const EDualSensePlayerLed* CurrentLed = LastPlayerLedModes.Find(DeviceId))
+    {
+        SetPlayerLed(DeviceId, *CurrentLed, 0, false, Duration);
+    }
+    return true;
+}
+
+bool UDualSenseSubsystem::SetAccessibilitySettings(int32 DeviceId, const FDualSenseAccessibilitySettings& Settings)
+{
+    if (!IsDeviceConnected(DeviceId)) return false;
+
+    FDualSenseAccessibilitySettings Sanitized = Settings;
+    Sanitized.LightBrightnessScale = ClampedUnit(Sanitized.LightBrightnessScale);
+    Sanitized.MinimumLightTransitionDuration = FMath::Max(0.0f, Sanitized.MinimumLightTransitionDuration);
+    Sanitized.RumbleIntensityScale = ClampedUnit(Sanitized.RumbleIntensityScale);
+    Sanitized.TriggerIntensityScale = ClampedUnit(Sanitized.TriggerIntensityScale);
+    AccessibilitySettings.Add(DeviceId, Sanitized);
+
+    // Apply hard-disable accessibility options immediately so an already-running
+    // effect cannot continue after the player changes their accessibility profile.
+    if (Sanitized.bDisableRumble)
+    {
+        NativeManager().SetVibration(NativeId(DeviceId), 0, 0, true);
+    }
+    if (Sanitized.bDisableAdaptiveTriggers)
+    {
+        NativeManager().StopTrigger(NativeId(DeviceId), DualSense::Hand::Both, true);
+    }
+    if (Sanitized.bDisableFlashingLights && LastRequestedLightbarColors.Contains(DeviceId))
+    {
+        LightbarTransitions.Remove(DeviceId);
+        const FLinearColor StaticColor = ApplyLightAccessibility(DeviceId, LastRequestedLightbarColors.FindRef(DeviceId));
+        LastLightbarColors.Add(DeviceId, StaticColor);
+        NativeManager().SetLightbar(NativeId(DeviceId), NativeColor(StaticColor), true);
+    }
+    if (Sanitized.bDisableFlashingLights)
+    {
+        if (const EDualSenseMicrophoneLed* MicrophoneLed = LastMicrophoneLedModes.Find(DeviceId);
+            MicrophoneLed && *MicrophoneLed == EDualSenseMicrophoneLed::Pulse)
+        {
+            SetMicrophoneLed(DeviceId, EDualSenseMicrophoneLed::On, true);
+        }
+    }
+
+    return true;
+}
+
+FDualSenseAccessibilitySettings UDualSenseSubsystem::GetAccessibilitySettings(int32 DeviceId) const
+{
+    return AccessibilityFor(DeviceId);
+}
+
+bool UDualSenseSubsystem::ApplyAccessibilityPreset(int32 DeviceId, EDualSenseAccessibilityPreset Preset)
+{
+    FDualSenseAccessibilitySettings Settings;
+
+    switch (Preset)
+    {
+        case EDualSenseAccessibilityPreset::ReducedHaptics:
+            Settings.RumbleIntensityScale = 0.45f;
+            Settings.TriggerIntensityScale = 0.45f;
+            break;
+
+        case EDualSenseAccessibilityPreset::Photosensitive:
+            Settings.LightBrightnessScale = 0.55f;
+            Settings.bDisableFlashingLights = true;
+            Settings.MinimumLightTransitionDuration = 0.25f;
+            break;
+
+        case EDualSenseAccessibilityPreset::LowSensory:
+            Settings.LightBrightnessScale = 0.45f;
+            Settings.bDisableFlashingLights = true;
+            Settings.MinimumLightTransitionDuration = 0.30f;
+            Settings.RumbleIntensityScale = 0.25f;
+            Settings.TriggerIntensityScale = 0.25f;
+            Settings.bDisableAudioHaptics = true;
+            break;
+
+        case EDualSenseAccessibilityPreset::NoHaptics:
+            Settings.bDisableRumble = true;
+            Settings.bDisableAdaptiveTriggers = true;
+            Settings.bDisableAudioHaptics = true;
+            break;
+
+        default:
+            break;
+    }
+
+    return SetAccessibilitySettings(DeviceId, Settings);
+}
+
+bool UDualSenseSubsystem::ResetAccessibilitySettings(int32 DeviceId)
+{
+    if (!IsDeviceConnected(DeviceId)) return false;
+    AccessibilitySettings.Remove(DeviceId);
+    return true;
+}
+
+bool UDualSenseSubsystem::SetTriggerPreset(int32 DeviceId, EDualSenseTriggerPreset Preset, EDualSenseHand Hand, float Intensity, bool bApplyImmediately)
+{
+    const float SafeIntensity = ClampedUnit(Intensity);
+    if (Preset == EDualSenseTriggerPreset::Off || SafeIntensity <= KINDA_SMALL_NUMBER)
+    {
+        return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    }
+
+    switch (Preset)
+    {
+        case EDualSenseTriggerPreset::SoftResistance:
+            return SetResistanceTrigger(DeviceId, 100, FMath::RoundToInt(80.0f * SafeIntensity), Hand, bApplyImmediately);
+        case EDualSenseTriggerPreset::MediumResistance:
+            return SetResistanceTrigger(DeviceId, 80, FMath::RoundToInt(160.0f * SafeIntensity), Hand, bApplyImmediately);
+        case EDualSenseTriggerPreset::StrongResistance:
+            return SetResistanceTrigger(DeviceId, 55, FMath::RoundToInt(230.0f * SafeIntensity), Hand, bApplyImmediately);
+        case EDualSenseTriggerPreset::GameCube:
+            return SetGameCubeTrigger(DeviceId, Hand, bApplyImmediately);
+        case EDualSenseTriggerPreset::Bow:
+            return SetBowTrigger(DeviceId, 72, FMath::RoundToInt(190.0f * SafeIntensity), Hand, bApplyImmediately);
+        case EDualSenseTriggerPreset::Weapon:
+            return SetWeaponTrigger(DeviceId, 4, FMath::Max(1, FMath::RoundToInt(8.0f * SafeIntensity)), 2, 6, Hand, bApplyImmediately);
+        case EDualSenseTriggerPreset::Automatic:
+            return SetMachineGunTrigger(DeviceId, 48, 2, SafeIntensity < 0.55f ? 1 : 2, 30, Hand, bApplyImmediately);
+        default:
+            return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    }
+}
+
+bool UDualSenseSubsystem::StopTrigger(int32 DeviceId, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    return NativeManager().StopTrigger(NativeId(DeviceId), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetGameCubeTrigger(int32 DeviceId, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    return NativeManager().SetGameCubeTrigger(NativeId(DeviceId), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetResistanceTrigger(int32 DeviceId, int32 StartZone, int32 Strength, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    return NativeManager().SetResistanceTrigger(NativeId(DeviceId), ByteValue(StartZone), ApplyTriggerAccessibility(DeviceId, Strength), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetBowTrigger(int32 DeviceId, int32 StartZone, int32 SnapBack, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    return NativeManager().SetBowTrigger(NativeId(DeviceId), ByteValue(StartZone), ApplyTriggerAccessibility(DeviceId, SnapBack), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetGallopingTrigger(int32 DeviceId, int32 StartPosition, int32 EndPosition, int32 FirstFoot, int32 SecondFoot, int32 Frequency, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    return NativeManager().SetGallopingTrigger(
+        NativeId(DeviceId), ByteValue(StartPosition), ByteValue(EndPosition),
+        ApplyTriggerAccessibility(DeviceId, FirstFoot), ApplyTriggerAccessibility(DeviceId, SecondFoot),
+        ByteValue(Frequency), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetWeaponTrigger(int32 DeviceId, int32 StartZone, int32 Amplitude, int32 Behavior, int32 Trigger, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    return NativeManager().SetWeaponTrigger(NativeId(DeviceId), ByteValue(StartZone), ApplyTriggerAccessibility(DeviceId, Amplitude), ByteValue(Behavior), ByteValue(Trigger), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetMachineGunTrigger(int32 DeviceId, int32 StartZone, int32 Behavior, int32 Amplitude, int32 Frequency, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    const float Scale = ClampedUnit(AccessibilityFor(DeviceId).TriggerIntensityScale);
+    int32 EffectiveAmplitude = FMath::Clamp(Amplitude, 1, 2);
+    if (Scale < 0.55f) EffectiveAmplitude = 1;
+    return NativeManager().SetMachineGunTrigger(NativeId(DeviceId), ByteValue(StartZone), ByteValue(Behavior), ByteValue(EffectiveAmplitude), ByteValue(Frequency), NativeHand(Hand), bApplyImmediately);
+}
+
+bool UDualSenseSubsystem::SetMachineTrigger(int32 DeviceId, int32 StartZone, int32 BehaviorFlag, int32 Force, int32 Amplitude, int32 Period, int32 Frequency, EDualSenseHand Hand, bool bApplyImmediately)
+{
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
+    return NativeManager().SetMachineTrigger(
+        NativeId(DeviceId), ByteValue(StartZone), ByteValue(BehaviorFlag),
+        ApplyTriggerAccessibility(DeviceId, Force), ApplyTriggerAccessibility(DeviceId, Amplitude),
+        ByteValue(Period), ByteValue(Frequency), NativeHand(Hand), bApplyImmediately);
+}
 
 bool UDualSenseSubsystem::SetCustomTrigger(int32 DeviceId, EDualSenseHand Hand, const TArray<uint8>& TenBytes, bool bApplyImmediately)
 {
+    if (!AdaptiveTriggersAllowed(DeviceId)) return StopTrigger(DeviceId, Hand, bApplyImmediately);
     if (TenBytes.Num() != 10) return false;
     std::array<std::uint8_t, 10> Bytes{};
     for (int32 Index = 0; Index < 10; ++Index) Bytes[static_cast<std::size_t>(Index)] = TenBytes[Index];
@@ -301,6 +758,7 @@ bool UDualSenseSubsystem::ConfigureDualSense(int32 DeviceId, bool bMicEnabled, b
 
 bool UDualSenseSubsystem::SendAudioHapticsBytes(int32 DeviceId, const TArray<uint8>& AudioData)
 {
+    if (!AudioHapticsAllowed(DeviceId)) return false;
     std::vector<std::uint8_t> Data;
     Data.reserve(static_cast<std::size_t>(AudioData.Num()));
     for (uint8 Value : AudioData) Data.push_back(Value);
@@ -309,6 +767,7 @@ bool UDualSenseSubsystem::SendAudioHapticsBytes(int32 DeviceId, const TArray<uin
 
 bool UDualSenseSubsystem::SendAudioHapticsFloats(int32 DeviceId, const TArray<float>& AudioData)
 {
+    if (!AudioHapticsAllowed(DeviceId)) return false;
     std::vector<float> Data;
     Data.reserve(static_cast<std::size_t>(AudioData.Num()));
     for (float Value : AudioData) Data.push_back(Value);
@@ -317,6 +776,7 @@ bool UDualSenseSubsystem::SendAudioHapticsFloats(int32 DeviceId, const TArray<fl
 
 bool UDualSenseSubsystem::SendAudioAndHapticsBytes(int32 DeviceId, const TArray<uint8>& HapticsData, const TArray<uint8>& AudioData)
 {
+    if (!AudioHapticsAllowed(DeviceId)) return false;
     std::vector<std::uint8_t> Haptics;
     std::vector<std::uint8_t> Audio;
     Haptics.reserve(static_cast<std::size_t>(HapticsData.Num()));

@@ -17,13 +17,15 @@ Place the repository in `YourProject/Plugins/DualSenseMultiplatform` and build t
 2. Bind `On Device Connected`.
 3. Store the `Device Id` from `FDualSenseDeviceInfo`.
 4. Call `Get State` to read analog, buttons, touch, battery, and enabled motion fields.
-5. Call output functions using the same Device Id.
+5. Call output functions using the same Device Id. Try `Set Lightbar` with `Transition Duration = 0.25` for a visible smooth transition.
+6. For adaptive triggers, start with `Set Trigger Preset (Simple)` before using the raw advanced nodes.
+7. If needed, apply an accessibility preset before gameplay output so sensory limits are enforced automatically.
 
 The subsystem requests an immediate device scan on initialization and continues hot-plug scans at the upstream registry interval.
 
 ## Output batching
 
-Most output functions have `Apply Immediately` enabled by default. For multiple changes in one frame, disable it on each setter and call `Apply Output` once at the end.
+Most output functions have `Apply Immediately` enabled by default. For multiple non-animated changes in one frame, disable it on each setter and call `Apply Output` once at the end. Smooth light transitions are tick-driven and flush their animation frames automatically.
 
 ## Sensors and touch
 

@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/) and uses Conventi
 
 ## [Unreleased]
 
+### Added
+- Accessibility profiles and per-controller sensory output limits for lights, flashing, rumble, adaptive triggers, and audio haptics.
+- Smooth-step lightbar/player-LED transitions through a `Transition Duration` parameter directly on the existing light nodes.
+- `Set Trigger Preset (Simple)` with gameplay-friendly adaptive-trigger presets and intensity scaling.
+- In-editor Blueprint tooltips for every public subsystem node and usable defaults for common/advanced trigger nodes.
+
 ### Changed
 - Replaced the copied GamepadCore vendor snapshot with a pinned `Dualsense-Multiplatform` git submodule.
 - Added automatic Dependabot submodule update PRs and self-contained release packaging.
