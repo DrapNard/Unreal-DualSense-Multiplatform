@@ -224,7 +224,9 @@ namespace
             CFRelease(Manager);
             if (!Match) return false;
 
-            if (IOHIDDeviceOpen(Match, kIOHIDOptionsTypeSeizeDevice) != kIOReturnSuccess && IOHIDDeviceOpen(Match, kIOHIDOptionsTypeNone) != kIOReturnSuccess)
+            // Do not seize the device: the plugin should coexist with Unreal's
+            // regular input stack and other user-space input consumers.
+            if (IOHIDDeviceOpen(Match, kIOHIDOptionsTypeNone) != kIOReturnSuccess)
             {
                 CFRelease(Match);
                 return false;

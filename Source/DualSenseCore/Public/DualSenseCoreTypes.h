@@ -72,6 +72,16 @@ namespace DualSense
         FnRight,
         PaddleLeft,
         PaddleRight,
+        LeftTriggerThreshold,
+        RightTriggerThreshold,
+        LeftStickRight,
+        LeftStickUp,
+        LeftStickDown,
+        LeftStickLeft,
+        RightStickLeft,
+        RightStickDown,
+        RightStickUp,
+        RightStickRight,
         Count
     };
 

@@ -70,7 +70,18 @@ enum class EDualSenseButton : uint8
     FnLeft,
     FnRight,
     PaddleLeft,
-    PaddleRight
+    PaddleRight,
+    LeftTriggerThreshold,
+    RightTriggerThreshold,
+    LeftStickRight,
+    LeftStickUp,
+    LeftStickDown,
+    LeftStickLeft,
+    RightStickLeft,
+    RightStickDown,
+    RightStickUp,
+    RightStickRight,
+    Count UMETA(Hidden)
 };
 
 USTRUCT(BlueprintType)
