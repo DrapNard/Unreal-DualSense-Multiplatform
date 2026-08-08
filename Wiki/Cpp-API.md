@@ -24,7 +24,7 @@ DualSense::Manager& Manager = IDualSenseCoreModule::Get().GetManager();
 Manager.RequestImmediateDetection();
 ```
 
-The manager API uses `std::vector`, `std::array`, `std::string`, and POD-like structs. It deliberately hides all vendored GamepadCore implementation types.
+The manager API uses `std::vector`, `std::array`, `std::string`, and POD-like structs. It deliberately hides all upstream GamepadCore implementation types.
 
 ## Threading
 

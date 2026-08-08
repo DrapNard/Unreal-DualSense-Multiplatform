@@ -2,3 +2,5 @@
 * @DrapNard
 /Source/DualSenseCore/ @DrapNard
 /Source/DualSenseRuntime/ @DrapNard
+/ThirdParty/Dualsense-Multiplatform/ @DrapNard
+/.gitmodules @DrapNard

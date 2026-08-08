@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - "Source/**"
+      - "ThirdParty/**"
+      - ".gitmodules"
       - "Config/**"
       - "DualSenseMultiplatform.uplugin"
       - ".github/workflows/unreal-matrix.yml"
@@ -30,6 +32,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Validate repository
         run: python Scripts/validate_repo.py

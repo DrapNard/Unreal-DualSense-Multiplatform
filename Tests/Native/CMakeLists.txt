@@ -6,9 +6,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(PLUGIN_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(CORE_ROOT "${PLUGIN_ROOT}/Source/DualSenseCore")
-set(VENDOR_ROOT "${CORE_ROOT}/Private/Vendor/GamepadCore/Source")
+set(GAMEPAD_CORE_ROOT "${PLUGIN_ROOT}/ThirdParty/Dualsense-Multiplatform/Source")
+if(NOT EXISTS "${GAMEPAD_CORE_ROOT}/Public/GCore/Interfaces/IPlatformHardware.h")
+    message(FATAL_ERROR "Dualsense-Multiplatform submodule is missing. Run: git submodule update --init ThirdParty/Dualsense-Multiplatform")
+endif()
 
-file(GLOB_RECURSE VENDOR_SOURCES "${VENDOR_ROOT}/Private/*.cpp")
+file(GLOB GAMEPAD_CORE_BRIDGES "${CORE_ROOT}/Private/ThirdParty/GamepadCore_*.cpp")
 set(PLATFORM_SOURCE "")
 if(WIN32)
     set(PLATFORM_SOURCE "${CORE_ROOT}/Private/Platform/DualSensePlatformWindows.cpp")
@@ -23,15 +26,16 @@ endif()
 add_executable(dualsense_native_tests
     main.cpp
     "${CORE_ROOT}/Private/DualSenseCoreManager.cpp"
+    "${CORE_ROOT}/Private/Platform/DualSensePlatformHardware.cpp"
     ${PLATFORM_SOURCE}
-    ${VENDOR_SOURCES}
+    ${GAMEPAD_CORE_BRIDGES}
 )
 target_compile_definitions(dualsense_native_tests PRIVATE DUALSENSECORE_API=)
 target_include_directories(dualsense_native_tests PRIVATE
     "${CORE_ROOT}/Public"
     "${CORE_ROOT}/Private"
-    "${VENDOR_ROOT}/Public"
-    "${VENDOR_ROOT}/Private"
+    "${GAMEPAD_CORE_ROOT}/Public"
+    "${GAMEPAD_CORE_ROOT}/Private"
 )
 if(WIN32)
     target_link_libraries(dualsense_native_tests PRIVATE setupapi hid)

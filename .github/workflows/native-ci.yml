@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: true
 
       - name: Validate repository
         run: python Scripts/validate_repo.py

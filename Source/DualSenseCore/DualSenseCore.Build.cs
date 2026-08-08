@@ -10,12 +10,26 @@ public class DualSenseCore : ModuleRules
         CppStandard = CppStandardVersion.Cpp20;
         bEnableExceptions = false;
         bUseRTTI = false;
+        // Compile bridges include one upstream .cpp each; keep them as separate translation units.
+        bUseUnity = false;
 
         PublicDependencyModuleNames.AddRange(new[] { "Core" });
 
-        string VendorRoot = Path.Combine(ModuleDirectory, "Private", "Vendor", "GamepadCore", "Source");
-        PrivateIncludePaths.Add(Path.Combine(VendorRoot, "Public"));
-        PrivateIncludePaths.Add(Path.Combine(VendorRoot, "Private"));
+        string PluginRoot = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", ".."));
+        string GamepadCoreRoot = Path.Combine(PluginRoot, "ThirdParty", "Dualsense-Multiplatform", "Source");
+        string GamepadCorePublic = Path.Combine(GamepadCoreRoot, "Public");
+        string GamepadCorePrivate = Path.Combine(GamepadCoreRoot, "Private");
+
+        if (!Directory.Exists(GamepadCorePublic) || !Directory.Exists(GamepadCorePrivate))
+        {
+            throw new BuildException(
+                "Dualsense-Multiplatform submodule is missing. Run: " +
+                "git submodule update --init ThirdParty/Dualsense-Multiplatform");
+        }
+
+        PrivateIncludePaths.Add(GamepadCorePublic);
+        PrivateIncludePaths.Add(GamepadCorePrivate);
+        ExternalDependencies.Add(Path.Combine(PluginRoot, ".gitmodules"));
 
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
