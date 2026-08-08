@@ -11,17 +11,33 @@ jobs:
   source-package:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout release tag
+      - name: Checkout release tag with dependency
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
+          submodules: true
 
-      - name: Create plugin archive
+      - name: Create self-contained plugin archive
         shell: bash
         run: |
+          set -euo pipefail
           archive="DualSenseMultiplatform-${{ github.event.release.tag_name }}.zip"
-          git archive --format=zip --prefix=DualSenseMultiplatform/ HEAD -o "$archive"
+          staging="$RUNNER_TEMP/release/DualSenseMultiplatform"
+          mkdir -p "$staging"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='build' \
+            --exclude='dist' \
+            --exclude='Binaries' \
+            --exclude='Intermediate' \
+            ./ "$staging/"
+          (cd "$(dirname "$staging")" && zip -qr "$GITHUB_WORKSPACE/$archive" DualSenseMultiplatform)
           echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: Verify submodule source is packaged
+        shell: bash
+        run: |
+          unzip -l "$ARCHIVE" | grep -q 'DualSenseMultiplatform/ThirdParty/Dualsense-Multiplatform/Source/Public/GCore/Interfaces/IPlatformHardware.h'
 
       - name: Attach plugin archive
         env:

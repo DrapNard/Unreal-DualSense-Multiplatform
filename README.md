@@ -62,7 +62,15 @@ Real Unreal builds require an Unreal installation. The public GitHub-hosted CI t
 
 ## Installation
 
-Copy or clone the repository into your project plugin directory:
+Clone the repository into your project plugin directory and initialize the library submodule:
+
+```bash
+git clone https://github.com/DrapNard/Unreal-DualSense-Multiplatform.git YourProject/Plugins/DualSenseMultiplatform
+cd YourProject/Plugins/DualSenseMultiplatform
+git submodule update --init ThirdParty/Dualsense-Multiplatform
+```
+
+Release ZIPs already contain the submodule source, so ZIP users do not need this Git step. The resulting layout is:
 
 ```text
 YourProject/
@@ -139,12 +147,12 @@ flowchart TD
     CPP[Gameplay C++] --> Runtime
     NativeCPP[Native / plugin C++] --> Core[DualSenseCore\nstandard C++ manager]
     Runtime --> Core
-    Core --> Vendor[Vendored GamepadCore\nMIT]
+    Core --> Upstream[Dualsense-Multiplatform submodule\nMIT]
     Core --> Platform{Platform HID backend}
     Platform --> Win[Windows HID + SetupAPI]
     Platform --> Linux[Linux hidraw]
     Platform --> Mac[macOS IOHIDManager]
-    Vendor --> Platform
+    Upstream --> Platform
 ```
 
 The important rule is that **Unreal reflection code never owns the HID protocol**. This keeps the code understandable for Unreal users while making platform work testable without launching the editor.
@@ -159,14 +167,28 @@ Source/
 │   ├── Public/                     # Standard-C++ public manager/types
 │   └── Private/
 │       ├── Platform/               # Windows, Linux, macOS HID backends
-│       └── Vendor/GamepadCore/     # Upstream MIT snapshot
+│       └── ThirdParty/             # Compile bridges into upstream source
 └── DualSenseRuntime/
     ├── Public/                     # UENUM/USTRUCT/subsystem Blueprint API
     └── Private/
+ThirdParty/
+└── Dualsense-Multiplatform/        # Git submodule pinned to an upstream commit
 Tests/Native/                       # Cross-platform tests without Unreal
 Wiki/                               # Source for GitHub Wiki pages
 .github/workflows/                  # Native, Unreal, release, Wiki pipelines
 ```
+
+## Updating Dualsense-Multiplatform
+
+The dependency is pinned to an exact commit, while `.gitmodules` declares `main` as the update branch. Dependabot can open a PR when upstream moves; manual updates are also simple:
+
+```bash
+git submodule update --remote ThirdParty/Dualsense-Multiplatform
+git add ThirdParty/Dualsense-Multiplatform
+git commit -m "chore(deps): update Dualsense-Multiplatform"
+```
+
+Do not edit the submodule in-place from this repository. Put reusable fixes upstream and keep Unreal-specific workarounds in `DualSenseCore`.
 
 ## Testing
 
@@ -192,7 +214,7 @@ For an engine build:
 
 The Unreal integration is licensed under **Mozilla Public License 2.0**. If you modify MPL-covered plugin files and distribute those modified files, the MPL requires those file modifications to remain available under MPL-2.0. Your game, gameplay modules, assets, and unrelated proprietary code do **not** become MPL simply because they use the plugin.
 
-The vendored Dualsense-Multiplatform / GamepadCore source remains under its original **MIT** license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [Docs/LICENSING.md](Docs/LICENSING.md).
+The `ThirdParty/Dualsense-Multiplatform` git submodule remains under its upstream **MIT** license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [Docs/LICENSING.md](Docs/LICENSING.md).
 
 This repository is not affiliated with or endorsed by Sony Interactive Entertainment or Epic Games.
 

@@ -8,9 +8,11 @@ MPL is file-level copyleft. In practical terms, distributing a modified MPL-cove
 
 This makes the project meaningfully copyleft while still allowing proprietary Unreal games to use it.
 
-## Vendored GamepadCore: MIT
+## Dualsense-Multiplatform submodule: MIT
 
-`Source/DualSenseCore/Private/Vendor/GamepadCore` comes from Dualsense-Multiplatform / GamepadCore and remains under its upstream MIT license. The MIT text is preserved in `LICENSES/MIT-GamepadCore.txt` and the vendor directory.
+`ThirdParty/Dualsense-Multiplatform` is a git submodule pointing to the upstream Dualsense-Multiplatform / GamepadCore repository. Its source remains under the upstream MIT license.
+
+The parent repository pins an exact upstream commit for reproducible builds. `LICENSES/MIT-GamepadCore.txt` is retained as a convenience copy of the upstream license, and an initialized submodule also contains its own `LICENSE` file.
 
 ## Engine and platform SDKs
 

@@ -13,7 +13,7 @@ The platform backends filter HID gamepad usages and these IDs.
 
 ## USB vs Bluetooth
 
-GamepadCore uses different report layouts and CRC handling depending on transport. The platform layer detects transport and leaves report composition/parsing to the vendored library.
+GamepadCore uses different report layouts and CRC handling depending on transport. The platform layer detects transport and leaves report composition/parsing to the pinned upstream submodule.
 
 ## Feature notes
 

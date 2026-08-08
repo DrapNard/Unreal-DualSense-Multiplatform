@@ -37,7 +37,9 @@ if plugin_path.exists():
 
 required_paths = [
     "LICENSE",
+    ".gitmodules",
     "LICENSES/MIT-GamepadCore.txt",
+    "ThirdParty/Dualsense-Multiplatform/Source/Public/GCore/Interfaces/IPlatformHardware.h",
     "THIRD_PARTY_NOTICES.md",
     "README.md",
     "CONTRIBUTING.md",
@@ -57,8 +59,38 @@ required_paths = [
 for required in required_paths:
     require(required)
 
+gamepad_private = ROOT / "ThirdParty/Dualsense-Multiplatform/Source/Private"
+bridge_root = ROOT / "Source/DualSenseCore/Private/ThirdParty"
+if gamepad_private.exists() and bridge_root.exists():
+    upstream_sources = {
+        path.relative_to(gamepad_private).as_posix()
+        for path in gamepad_private.rglob("*.cpp")
+    }
+    bridged_sources: set[str] = set()
+    include_prefix = '#include "../../../../ThirdParty/Dualsense-Multiplatform/Source/Private/'
+    for bridge in bridge_root.glob("GamepadCore_*.cpp"):
+        for line in bridge.read_text(encoding="utf-8").splitlines():
+            if line.startswith(include_prefix) and line.endswith('"'):
+                bridged_sources.add(line[len(include_prefix):-1])
+    missing_bridges = sorted(upstream_sources - bridged_sources)
+    stale_bridges = sorted(bridged_sources - upstream_sources)
+    if missing_bridges:
+        errors.append(f"Missing GamepadCore compile bridges: {missing_bridges}")
+    if stale_bridges:
+        errors.append(f"Compile bridges reference missing upstream sources: {stale_bridges}")
+
+gitmodules_path = ROOT / ".gitmodules"
+if gitmodules_path.exists():
+    gitmodules = gitmodules_path.read_text(encoding="utf-8")
+    if "path = ThirdParty/Dualsense-Multiplatform" not in gitmodules:
+        errors.append(".gitmodules must register ThirdParty/Dualsense-Multiplatform")
+    if "url = https://github.com/DrapNard/Dualsense-Multiplatform.git" not in gitmodules:
+        errors.append("Dualsense-Multiplatform submodule URL is incorrect")
+    if "branch = main" not in gitmodules:
+        errors.append("Dualsense-Multiplatform submodule must follow main for update tooling")
+
 for path in (ROOT / "Source").rglob("*"):
-    if not path.is_file() or "Vendor" in path.parts:
+    if not path.is_file():
         continue
     if path.suffix not in {".h", ".cpp", ".cs"}:
         continue

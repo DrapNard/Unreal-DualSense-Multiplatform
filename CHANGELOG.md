@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/) and uses Conventional Commits to prepare automated releases.
 
+## [Unreleased]
+
+### Changed
+- Replaced the copied GamepadCore vendor snapshot with a pinned `Dualsense-Multiplatform` git submodule.
+- Added automatic Dependabot submodule update PRs and self-contained release packaging.
+- Moved the duplicate HID handle safeguard into the plugin platform wrapper so the upstream submodule stays unmodified.
+
 ## [1.0.0] - 2026-08-08
 
 ### Added

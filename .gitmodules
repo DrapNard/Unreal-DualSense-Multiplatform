@@ -1,0 +1,4 @@
+[submodule "Dualsense-Multiplatform"]
+	path = ThirdParty/Dualsense-Multiplatform
+	url = https://github.com/DrapNard/Dualsense-Multiplatform.git
+	branch = main

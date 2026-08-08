@@ -277,7 +277,7 @@ namespace
 
 namespace DualSense::Platform
 {
-    std::unique_ptr<IPlatformHardware> CreateHardware()
+    std::unique_ptr<IPlatformHardware> CreateNativeHardware()
     {
         return std::make_unique<MacHardware>();
     }

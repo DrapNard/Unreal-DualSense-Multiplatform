@@ -6,9 +6,9 @@ Thanks for helping improve DualSense Multiplatform for Unreal Engine.
 
 - Keep repository content, code comments, commit messages, issues, and documentation in English.
 - Keep platform code out of the Blueprint layer. HID code belongs in `DualSenseCore/Private/Platform`.
-- Do not expose vendored GamepadCore types from the public Unreal API.
+- Do not expose upstream GamepadCore types from the public Unreal API.
 - Prefer small, reviewable changes with tests.
-- Preserve the MIT notice for vendored GamepadCore code.
+- Preserve the upstream MIT license and keep the git submodule unmodified.
 - New integration code is MPL-2.0 and should carry `SPDX-License-Identifier: MPL-2.0`.
 
 ## Development flow
@@ -46,6 +46,14 @@ Use `RunUAT.bat` on Windows.
 
 A PR should explain what changed, why it changed, affected controller models/transports, tested OS/UE versions, and any hardware used. Changes to HID report layouts should include references or captures that can be legally redistributed.
 
-## Vendored GamepadCore updates
+## Dualsense-Multiplatform submodule updates
 
-Do not casually edit `Source/DualSenseCore/Private/Vendor/GamepadCore`. Prefer fixing integration behavior outside the vendor tree. When an upstream patch is unavoidable, document it in `Docs/VENDOR_PATCHES.md` and link the upstream issue or PR.
+Do not commit local edits inside `ThirdParty/Dualsense-Multiplatform`. Reusable library fixes belong in the upstream repository. After an upstream change is merged, update the pinned commit here and let CI validate the integration.
+
+```bash
+git submodule update --remote ThirdParty/Dualsense-Multiplatform
+git add ThirdParty/Dualsense-Multiplatform
+git commit -m "chore(deps): update Dualsense-Multiplatform"
+```
+
+Dependabot is also configured to propose submodule updates automatically.
