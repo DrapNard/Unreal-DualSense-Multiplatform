@@ -1,0 +1,29 @@
+name: Release Assets
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  source-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Create plugin archive
+        shell: bash
+        run: |
+          archive="DualSenseMultiplatform-${{ github.event.release.tag_name }}.zip"
+          git archive --format=zip --prefix=DualSenseMultiplatform/ HEAD -o "$archive"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: Attach plugin archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$ARCHIVE" --clobber

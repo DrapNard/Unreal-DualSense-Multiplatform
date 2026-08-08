@@ -1,0 +1,4 @@
+# Replace or extend these ownership rules as the maintainer team grows.
+* @DrapNard
+/Source/DualSenseCore/ @DrapNard
+/Source/DualSenseRuntime/ @DrapNard
