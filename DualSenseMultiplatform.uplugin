@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
   "Version": 10000,
-  "VersionName": "1.0.0",
+  "VersionName": "1.1.0",
   "FriendlyName": "DualSense Multiplatform",
   "Description": "Cross-platform DualSense and DualShock 4 advanced controller support for Unreal Engine, with Blueprint and C++ APIs.",
   "Category": "Input Devices",
@@ -12,7 +12,11 @@
   "CanContainContent": false,
   "IsBetaVersion": true,
   "Installed": false,
-  "SupportedTargetPlatforms": ["Win64", "Linux", "Mac"],
+  "SupportedTargetPlatforms": [
+    "Win64",
+    "Linux",
+    "Mac"
+  ],
   "Modules": [
     {
       "Name": "DualSenseCore",
